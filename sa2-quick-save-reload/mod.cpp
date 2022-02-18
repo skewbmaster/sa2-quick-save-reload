@@ -4,16 +4,20 @@
 #include <filesystem>
 
 #define DEFAULT_MESSAGE_TIME 480
+#define SA2_SAVE_SIZE 24576
 
 bool enabled;
+bool forceReload;
+bool deleteChao;
 static char* newSavePath;
 static char* slotSavePath;
 
 int oldMenu;
 
 bool hasInit;
-std::string debugMessage;
-std::string extraDebugMessage;
+bool hasChosenFile;
+static std::string debugMessage;
+static std::string extraDebugMessage;
 int debugMessageTime;
 int extraDebugMessageTime;
 
@@ -29,6 +33,7 @@ void SetPathToWrite()
 	memcpy_s(&CurrentSavePath, 4, &slotSavePath, 4);
 }
 
+void ReloadSave();
 void SetupDebugInfo(int scaleText, int colour);
 
 extern "C"
@@ -45,13 +50,15 @@ extern "C"
 		std::string premadeSave = configFile->getString("QSRSettings", "PremadeFile", "Clean");
 		std::string saveFilePath = configFile->getString("QSRSettings", "SaveFilePath", "");
 		int saveNum = configFile->getInt("QSRSettings", "SaveNum", 10);
+		forceReload = configFile->getBool("QSRSettings", "ForceReload", false);
+		deleteChao = configFile->getBool("QSRSettings", "DeleteChao", false);
 
 		delete configFile;
 		// Config End
 
 		if (!enabled)
 		{
-			debugMessage = "Quick Save Reloader is disabled.";
+			debugMessage = "Quick Save Reloader is disabled";
 			debugMessageTime = DEFAULT_MESSAGE_TIME;
 			return;
 		}
@@ -72,11 +79,11 @@ extern "C"
 		{
 			if (saveFilePath.empty() || !std::filesystem::exists(saveFilePath))
 			{
-				debugMessage = "Custom Filepath provided doesn't exist.";
+				debugMessage = "Custom Filepath provided doesn't exist";
 				debugMessageTime = DEFAULT_MESSAGE_TIME;
 				return;
 			}
-			else if (std::filesystem::file_size(saveFilePath) != 24576)
+			else if (std::filesystem::file_size(saveFilePath) != SA2_SAVE_SIZE)
 			{
 				debugMessage = "Custom File provided isn't an SA2 Save File";
 				debugMessageTime = DEFAULT_MESSAGE_TIME;
@@ -96,6 +103,7 @@ extern "C"
 		SetPathToRead();
 
 		hasInit = true;
+		hasChosenFile = false;
 		extraDebugMessage = "Saving to File Number " + std::to_string(saveNum);
 		extraDebugMessageTime = DEFAULT_MESSAGE_TIME;
 		debugMessageTime = DEFAULT_MESSAGE_TIME;
@@ -103,25 +111,20 @@ extern "C"
 
 	__declspec(dllexport) void __cdecl OnFrame()
 	{
-		if (!enabled && debugMessageTime == 0) return;
-
-		if (CurrentMenu == Menus_TitleScreen && oldMenu != Menus_TitleScreen && hasInit)
+		if (!hasChosenFile && CurrentMenu == Menus_TitleScreen && oldMenu == Menus_FileSelect)
 		{
-			SetPathToRead();
-			ProbablyLoadsSave(0);
+			hasChosenFile = true;
 			SetPathToWrite();
-
-			PrintDebug("Reloaded Savefile\n");
-			debugMessage = "Reloaded Savefile";
-			debugMessageTime = 100;
 		}
 
-		oldMenu = CurrentMenu;
+		if (!enabled && debugMessageTime == 0) return;
 
 		if (!hasInit && debugMessageTime != 0)
 		{
-			SetupDebugInfo(18, 0xFF00FFAA);
+			
+			SetupDebugInfo(18, 0xFFFF0000);
 			HelperFunctionsGlobal.DisplayDebugString(NJM_LOCATION(1, 1), "WARNING:");
+			SetupDebugInfo(18, 0xFF00FFAA);
 			HelperFunctionsGlobal.DisplayDebugString(NJM_LOCATION(1, 2), debugMessage.c_str());
 
 			debugMessageTime--;
@@ -131,16 +134,43 @@ extern "C"
 			SetupDebugInfo(18, 0xFF00FFAA);
 			HelperFunctionsGlobal.DisplayDebugString(NJM_LOCATION(1, 1), "SA2 Quick Save Reload");
 			HelperFunctionsGlobal.DisplayDebugString(NJM_LOCATION(1, 3), debugMessage.c_str());
-			if (extraDebugMessageTime != 0)
-				HelperFunctionsGlobal.DisplayDebugString(NJM_LOCATION(1, 4), extraDebugMessage.c_str());
 
 			debugMessageTime--;
 		}
+
+		if (extraDebugMessageTime != 0)
+		{
+			HelperFunctionsGlobal.DisplayDebugString(NJM_LOCATION(1, 4), extraDebugMessage.c_str());
+			extraDebugMessageTime--;
+		}
+
+		oldMenu = CurrentMenu;
 	}
 
 	__declspec(dllexport) void __cdecl OnInput()
 	{
-		
+		if (!hasInit || !hasChosenFile) return;
+
+		if (forceReload && CurrentMenu == Menus_TitleScreen && oldMenu != Menus_TitleScreen)
+		{
+			ReloadSave();
+		}
+		else if (!forceReload && (CurrentMenu == Menus_TitleScreen || CurrentMenu == Menus_Main))
+		{
+			extraDebugMessage = "Press Y to reload save";
+			extraDebugMessageTime = 1;
+
+			PDS_PERIPHERAL* controller = ControllerPointers[0];
+
+			if (controller && controller->press & Buttons_Y) // || keyboard handling maybe? Not possible cos sa2 doesn't map keyboard keys :)
+			{
+				ReloadSave();
+			}
+		}
+		else
+		{
+			extraDebugMessageTime = 0;
+		}
 	}
 
 	__declspec(dllexport) ModInfo SA2ModInfo = { ModLoaderVer };
@@ -163,3 +193,52 @@ void SetupDebugInfo(int scaleText, int colour)
 	ScaleDebugFontQSR(scaleText);
 	HelperFunctionsGlobal.SetDebugFontColor(colour);
 }
+
+void DeleteChaoSave()
+{
+	if (std::filesystem::exists("resource/gd_PC/SAVEDATA/SONIC2B__ALF"))
+	{
+		std::error_code exception;
+		if (std::filesystem::remove("resource/gd_PC/SAVEDATA/SONIC2B__ALF", exception))
+		{
+			PrintDebug("Deleted Chao file");
+			debugMessage = "Reloaded Savefile and Deleted Chao file";
+		}
+		else
+		{
+			PrintDebug("Couldn't delete Chao file");
+			debugMessage = "Reloaded Savefile but couldn't delete Chao file";
+		}
+	}
+	else
+	{
+		PrintDebug("Chao file doesn't exist");
+		debugMessage = "Reloaded Savefile but Chao file doesn't exist";
+	}
+}
+
+void ReloadSave()
+{
+	if (!std::filesystem::exists(newSavePath))
+	{
+		PrintDebug("Reload file doesn't exist anymore");
+		debugMessage = "Reload file doesn't exist anymore";
+		debugMessageTime = 100;
+		return;
+	}
+
+	SetPathToRead();
+	ProbablyLoadsSave(0);
+	SetPathToWrite();
+
+	PrintDebug("Reloaded Savefile\n");
+	debugMessage = "Reloaded Savefile";
+
+	if (deleteChao)
+	{
+		DeleteChaoSave();
+	}
+
+	debugMessageTime = 100;
+}
+
