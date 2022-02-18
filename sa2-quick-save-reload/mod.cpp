@@ -33,6 +33,12 @@ void SetPathToWrite()
 	memcpy_s(&CurrentSavePath, 4, &slotSavePath, 4);
 }
 
+void SetPathToNormal()
+{
+	int resourceGD1Pointer = 0x173D01C;
+	WriteData(&CurrentSavePath, &resourceGD1Pointer, 4);
+}
+
 void ReloadSave();
 void SetupDebugInfo(int scaleText, int colour);
 
@@ -114,6 +120,14 @@ extern "C"
 		if (!hasChosenFile && CurrentMenu == Menus_TitleScreen && oldMenu == Menus_FileSelect)
 		{
 			hasChosenFile = true;
+			SetPathToWrite();
+		}
+		else if (hasChosenFile && CurrentMenu == Menus_Unknown_18 && oldMenu == Menus_Settings)
+		{
+			SetPathToNormal();
+		}
+		else if (hasChosenFile && CurrentMenu == Menus_Settings && oldMenu == Menus_Unknown_18)
+		{
 			SetPathToWrite();
 		}
 
