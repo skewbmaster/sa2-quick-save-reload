@@ -3,6 +3,7 @@
 #include <string>
 #include <filesystem>
 
+#define DEBUGTEXT false
 #define DEFAULT_MESSAGE_TIME 480
 #define SA2_SAVE_SIZE 24576
 
@@ -189,8 +190,10 @@ extern "C"
 		}
 		else if (!forceReload && CurrentMenu == Menus_TitleScreen)
 		{
+#if DEBUGTEXT
 			extraDebugMessage = "Press Y to reload Save Menu";
 			extraDebugMessageTime = 1;
+#endif
 
 			PDS_PERIPHERAL* controller = ControllerPointers[0];
 
@@ -263,7 +266,6 @@ void DeleteMainSave()
 	else
 	{
 		PrintDebug("Savefile doesn't exist\n");
-		debugMessage = "Reloaded Save menu but ";
 	}
 }
 
@@ -304,7 +306,11 @@ void ReloadSaveMenu()
 {
 	WriteData<4>((void*) 0x173D06C, -1);
 	PrintDebug("Reloaded Save menu\n");
+
+#if DEBUGTEXT
 	debugMessage = "Reloaded Save Menu";
+	debugMessageTime = 100;
+#endif
 
 	if (deleteMainFile)
 	{
@@ -315,8 +321,6 @@ void ReloadSaveMenu()
 	{
 		DeleteChaoSave();
 	}
-
-	debugMessageTime = 100;
 }
 
 void ReloadSaveLegacy()
@@ -324,8 +328,10 @@ void ReloadSaveLegacy()
 	if (!std::filesystem::exists(newSavePath))
 	{
 		PrintDebug("Reload file doesn't exist anymore\n");
+#if DEBUGTEXT
 		debugMessage = "Reload file doesn't exist anymore";
 		debugMessageTime = 100;
+#endif
 		return;
 	}
 
@@ -334,13 +340,14 @@ void ReloadSaveLegacy()
 	SetPathToWrite();
 
 	PrintDebug("Reloaded Savefile\n");
+#if DEBUGTEXT
 	debugMessage = "Reloaded Savefile";
+	debugMessageTime = 100;
+#endif
 
 	if (deleteChao)
 	{
 		DeleteChaoSave();
 	}
-
-	debugMessageTime = 100;
 }
 
