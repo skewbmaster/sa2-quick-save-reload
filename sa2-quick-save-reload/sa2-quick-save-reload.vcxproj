@@ -178,7 +178,9 @@
       <AdditionalDependencies>$(SolutionDir)bin\ModLoaderCommon.lib;%(AdditionalDependencies)</AdditionalDependencies>
     </Link>
     <PostBuildEvent>
-      <Command>xcopy /D /Y "$(TargetPath)" "G:\Steam\steamapps\common\Sonic Adventure 2\mods\sa2-quick-save-reload\"</Command>
+      <Command>xcopy /D /Y "$(TargetPath)" "G:\Steam\steamapps\common\Sonic Adventure 2\mods\sa2-quick-save-reload\"
+xcopy /D /Y "$(ProjectDir)configschema.xml" "$(TargetDir)"
+xcopy /D /Y "$(ProjectDir)mod.ini" "$(TargetDir)"</Command>
     </PostBuildEvent>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">

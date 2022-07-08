@@ -8,9 +8,12 @@
 
 bool enabled;
 bool forceReload;
+bool deleteMainFile;
 bool deleteChao;
+bool useLegacySettings;
 static char* newSavePath;
 static char* slotSavePath;
+static std::string modPath;
 
 int oldMenu;
 
@@ -23,40 +26,38 @@ int extraDebugMessageTime;
 
 HelperFunctions HelperFunctionsGlobal;
 
-void SetPathToRead()
-{
-	memcpy_s(&CurrentSavePath, 4, &newSavePath, 4);
-}
-
-void SetPathToWrite()
-{
-	memcpy_s(&CurrentSavePath, 4, &slotSavePath, 4);
-}
-
+void SetPathToRead() { memcpy_s(&CurrentSavePath, 4, &newSavePath, 4); }
+void SetPathToWrite() { memcpy_s(&CurrentSavePath, 4, &slotSavePath, 4); }
 void SetPathToNormal()
 {
 	int resourceGD1Pointer = 0x173D01C;
 	WriteData(&CurrentSavePath, &resourceGD1Pointer, 4);
 }
 
-void ReloadSave();
+void ReloadSaveLegacy();
 void SetupDebugInfo(int scaleText, int colour);
+
+void ReloadSaveMenu();
 
 extern "C"
 {
 	__declspec(dllexport) void __cdecl Init(const char* path, const HelperFunctions& helperFunctions)
 	{
 		HelperFunctionsGlobal = helperFunctions;
+		modPath = std::string(path);
 		hasInit = false;
 
 		// Config start
-		const IniFile* configFile = new IniFile(std::string(path) + "\\config.ini");
+		const IniFile* configFile = new IniFile(modPath + "\\config.ini");
+
+		useLegacySettings = configFile->getBool("LegacySettings", "UseLegacy", false);
+		std::string premadeSave = configFile->getString("LegacySettings", "PremadeFile", "Clean");
+		std::string saveFilePath = configFile->getString("LegacySettings", "SaveFilePath", "");
 
 		enabled = configFile->getBool("QSRSettings", "Enabled", false);
-		std::string premadeSave = configFile->getString("QSRSettings", "PremadeFile", "Clean");
-		std::string saveFilePath = configFile->getString("QSRSettings", "SaveFilePath", "");
 		int saveNum = configFile->getInt("QSRSettings", "SaveNum", 10);
 		forceReload = configFile->getBool("QSRSettings", "ForceReload", false);
+		deleteMainFile = configFile->getBool("QSRSettings", "DeleteMainFile", true);
 		deleteChao = configFile->getBool("QSRSettings", "DeleteChao", false);
 
 		delete configFile;
@@ -80,62 +81,72 @@ extern "C"
 		
 		sprintf_s(slotSavePath, 39, "./resource/gd_PC/SAVEDATA/SONIC2B__S%02d", saveNum);
 
-		std::string loadedPath;
-		if (premadeSave == "Custom")
+		if (useLegacySettings)
 		{
-			if (saveFilePath.empty() || !std::filesystem::exists(saveFilePath))
+			std::string loadedPath;
+			if (premadeSave == "Custom")
 			{
-				debugMessage = "Custom Filepath provided doesn't exist";
-				debugMessageTime = DEFAULT_MESSAGE_TIME;
-				return;
-			}
-			else if (std::filesystem::file_size(saveFilePath) != SA2_SAVE_SIZE)
-			{
-				debugMessage = "Custom File provided isn't an SA2 Save File";
-				debugMessageTime = DEFAULT_MESSAGE_TIME;
-				return;
-			}
+				if (saveFilePath.empty() || !std::filesystem::exists(saveFilePath))
+				{
+					debugMessage = "Custom Filepath provided doesn't exist";
+					debugMessageTime = DEFAULT_MESSAGE_TIME;
+					return;
+				}
+				else if (std::filesystem::file_size(saveFilePath) != SA2_SAVE_SIZE)
+				{
+					debugMessage = "Custom File provided isn't an SA2 Save File";
+					debugMessageTime = DEFAULT_MESSAGE_TIME;
+					return;
+				}
 
-			loadedPath = "./" + saveFilePath; // Set reload path to the custom provided one
-			debugMessage = "Using \"" + saveFilePath + "\"";
+				loadedPath = "./" + saveFilePath; // Set reload path to the custom provided one
+				debugMessage = "Using \"" + saveFilePath + "\"";
+			}
+			else
+			{
+				loadedPath = ".\\" + modPath + "\\premadeSaves\\" + premadeSave; // Set reload path to one of the ones inside premade saves
+				debugMessage = "Using " + premadeSave;
+			}
+			strcpy_s(newSavePath, loadedPath.length() + 1, loadedPath.c_str());
+			SetPathToRead();
+			hasChosenFile = false;
 		}
 		else
 		{
-			loadedPath = ".\\" + std::string(path) + "\\premadeSaves\\" + premadeSave; // Set reload path to one of the ones inside premade saves
-			debugMessage = "Using " + premadeSave;
+			hasChosenFile = true;
 		}
-		strcpy_s(newSavePath, loadedPath.length() + 1, loadedPath.c_str());
-		
-		SetPathToRead();
 
-		hasInit = true;
-		hasChosenFile = false;
-		extraDebugMessage = "Saving to File Number " + std::to_string(saveNum);
+		extraDebugMessage = "Using File Number " + std::to_string(saveNum);
 		extraDebugMessageTime = DEFAULT_MESSAGE_TIME;
 		debugMessageTime = DEFAULT_MESSAGE_TIME;
+
+		hasInit = true;
 	}
 
 	__declspec(dllexport) void __cdecl OnFrame()
 	{
-		if (!hasChosenFile && CurrentMenu == Menus_TitleScreen && oldMenu == Menus_FileSelect)
+		if (useLegacySettings)
 		{
-			hasChosenFile = true;
-			SetPathToWrite();
-		}
-		else if (hasChosenFile && CurrentMenu == Menus_Unknown_18 && oldMenu == Menus_Settings)
-		{
-			SetPathToNormal();
-		}
-		else if (hasChosenFile && CurrentMenu == Menus_Settings && oldMenu == Menus_Unknown_18)
-		{
-			SetPathToWrite();
+			if (!hasChosenFile && CurrentMenu == Menus_TitleScreen && oldMenu == Menus_FileSelect)
+			{
+				hasChosenFile = true;
+				SetPathToWrite();
+			}
+			else if (hasChosenFile && CurrentMenu == Menus_Unknown_18 && oldMenu == Menus_Settings)
+			{
+				SetPathToNormal();
+			}
+			else if (hasChosenFile && CurrentMenu == Menus_Settings && oldMenu == Menus_Unknown_18)
+			{
+				SetPathToWrite();
+			}
 		}
 
 		if (!enabled && debugMessageTime == 0) return;
 
 		if (!hasInit && debugMessageTime != 0)
 		{
-			
+
 			SetupDebugInfo(18, 0xFFFF0000);
 			HelperFunctionsGlobal.DisplayDebugString(NJM_LOCATION(1, 1), "WARNING:");
 			SetupDebugInfo(18, 0xFF00FFAA);
@@ -167,18 +178,32 @@ extern "C"
 
 		if (forceReload && CurrentMenu == Menus_TitleScreen && oldMenu != Menus_TitleScreen)
 		{
-			ReloadSave();
+			if (useLegacySettings)
+			{
+				ReloadSaveLegacy();
+			}
+			else
+			{
+				ReloadSaveMenu();
+			}
 		}
-		else if (!forceReload && (CurrentMenu == Menus_TitleScreen || CurrentMenu == Menus_Main))
+		else if (!forceReload && CurrentMenu == Menus_TitleScreen)
 		{
-			extraDebugMessage = "Press Y to reload save";
+			extraDebugMessage = "Press Y to reload Save Menu";
 			extraDebugMessageTime = 1;
 
 			PDS_PERIPHERAL* controller = ControllerPointers[0];
 
 			if (controller && controller->press & Buttons_Y) // || keyboard handling maybe? Not possible cos sa2 doesn't map keyboard keys :)
 			{
-				ReloadSave();
+				if (useLegacySettings)
+				{
+					ReloadSaveLegacy();
+				}
+				else
+				{
+					ReloadSaveMenu();
+				}
 			}
 		}
 		else
@@ -208,34 +233,97 @@ void SetupDebugInfo(int scaleText, int colour)
 	HelperFunctionsGlobal.SetDebugFontColor(colour);
 }
 
+void DeleteMainSave()
+{
+	std::filesystem::path savefilepath;
+	//PrintDebug(slotSavePath);
+	//PrintDebug((".\\" + std::string(modPath) + "\\backups\\" + (slotSavePath + 26)).c_str());
+	if (std::filesystem::exists(slotSavePath))
+	{
+		std::error_code exception;
+
+		if (std::filesystem::copy_file(slotSavePath, ".\\" + modPath + "\\backups\\" + (slotSavePath + 26), std::filesystem::copy_options::overwrite_existing, exception))
+		{
+			PrintDebug("Copied Savefile for backup\n");
+		}
+		else
+		{
+			PrintDebug(("Couldn't copy Savefile. " + exception.message()).c_str());
+		}
+
+		if (std::filesystem::remove(slotSavePath, exception))
+		{
+			PrintDebug("Deleted Savefile\n");
+		}
+		else
+		{
+			PrintDebug("Couldn't delete Savefile\n");
+		}
+	}
+	else
+	{
+		PrintDebug("Savefile doesn't exist\n");
+		debugMessage = "Reloaded Save menu but ";
+	}
+}
+
 void DeleteChaoSave()
 {
 	if (std::filesystem::exists("resource/gd_PC/SAVEDATA/SONIC2B__ALF"))
 	{
 		std::error_code exception;
-		if (std::filesystem::remove("resource/gd_PC/SAVEDATA/SONIC2B__ALF", exception))
+
+		if (std::filesystem::copy_file("resource/gd_PC/SAVEDATA/SONIC2B__ALF", ".\\" + modPath + "\\backups\\SONIC2B__ALF", std::filesystem::copy_options::overwrite_existing, exception))
 		{
-			PrintDebug("Deleted Chao file");
-			debugMessage = "Reloaded Savefile and Deleted Chao file";
+			PrintDebug("Copied Chao file for backup\n");
 		}
 		else
 		{
-			PrintDebug("Couldn't delete Chao file");
-			debugMessage = "Reloaded Savefile but couldn't delete Chao file";
+			PrintDebug(("Couldn't copy Chao file" + exception.message()).c_str());
+		}
+
+		if (std::filesystem::remove("resource/gd_PC/SAVEDATA/SONIC2B__ALF", exception))
+		{
+			PrintDebug("Deleted Chao file\n");
+			//debugMessage = "Reloaded Save menu and Deleted Chao file";
+		}
+		else
+		{
+			PrintDebug("Couldn't delete Chao file\n");
+			//debugMessage = "Reloaded Save menu but couldn't delete Chao file";
 		}
 	}
 	else
 	{
-		PrintDebug("Chao file doesn't exist");
-		debugMessage = "Reloaded Savefile but Chao file doesn't exist";
+		PrintDebug("Chao file doesn't exist\n");
+		//debugMessage = "Reloaded Save menu but Chao file doesn't exist";
 	}
 }
 
-void ReloadSave()
+void ReloadSaveMenu()
+{
+	WriteData<4>((void*) 0x173D06C, -1);
+	PrintDebug("Reloaded Save menu\n");
+	debugMessage = "Reloaded Save Menu";
+
+	if (deleteMainFile)
+	{
+		DeleteMainSave();
+	}
+
+	if (deleteChao)
+	{
+		DeleteChaoSave();
+	}
+
+	debugMessageTime = 100;
+}
+
+void ReloadSaveLegacy()
 {
 	if (!std::filesystem::exists(newSavePath))
 	{
-		PrintDebug("Reload file doesn't exist anymore");
+		PrintDebug("Reload file doesn't exist anymore\n");
 		debugMessage = "Reload file doesn't exist anymore";
 		debugMessageTime = 100;
 		return;

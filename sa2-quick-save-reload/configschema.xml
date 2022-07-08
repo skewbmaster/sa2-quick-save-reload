@@ -1,0 +1,41 @@
+<?xml version="1.0"?>
+<ConfigSchema xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:xsd="http://www.w3.org/2001/XMLSchema" xmlns="http://www.sonicretro.org">
+  <Groups>
+    <Group name="QSRSettings" display="Quick Reload Settings">
+      <Property name="Enabled" type="bool" defaultvalue="False" display="Enable Quick Reloading" alwaysinclude="true">
+		<HelpText>Set to True to enable quick save reloading.</HelpText>
+	  </Property>
+	  <Property name="SaveNum" type="int" minvalue="0" maxvalue="10" defaultvalue="10" display="Savefile Number" alwaysinclude="true">
+		<HelpText>The file number that will be deleted when "reloading" if the delete option is True.</HelpText>
+	  </Property>
+	  <Property name="DeleteMainFile" type="bool" defaultvalue="True" display="Delete Main File" alwaysinclude="true">
+		<HelpText>When reloading, it will delete the specified file to give you quicker menuing. (Will be backed up in the mod folder)</HelpText>
+	  </Property>
+	  <Property name="DeleteChao" type="bool" defaultvalue="False" display="Delete Chao File" alwaysinclude="true">
+		<HelpText>When reloading, it will also attempt to delete the chao save file if it exists.    (Will be backed up in the mod folder)</HelpText>
+	  </Property>
+	  <Property name="ForceReload" type="bool" defaultvalue="False" display="Force Reloading" alwaysinclude="true">
+		<HelpText>Reload savefile when the title screen loads no matter what (ignores button inputs).</HelpText>
+	  </Property>
+    </Group>
+	<Group name="LegacySettings" display="Legacy Settings">
+	  <Property name="UseLegacy" type="bool" defaultvalue="False" display="Use Legacy Settings" alwaysinclude="true">
+		<HelpText>Use the legacy reloader and settings. (Fastest method but not allowed by speedrun community as of 7/7/22 LOL)</HelpText>
+	  </Property>
+	  <Property name="PremadeFile" type="SaveType" defaultvalue="Clean" display="Premade Savefile" alwaysinclude="true">
+		<HelpText>If you want to reload a common save, select one of these. If you want to use your own then select "custom" and provide the path.</HelpText>
+	  </Property>
+      <Property name="SaveFilePath" type="string" defaultvalue="" display="Custom File Path">
+        <HelpText>The filepath to your save file. This is relative to your SA2 folder - for first savefile e.g. resource\gd_PC\SAVEDATA\SONIC2B__S01</HelpText>
+      </Property>
+	</Group>
+  </Groups>
+  <Enums>
+    <Enum name="SaveType">
+      <EnumMember name="Custom" />
+      <EnumMember name="Clean" display="Clean Save" />
+      <EnumMember name="ChaoPercent" display="Chao% NG+ Save" />
+	  <EnumMember name="EmblemSkip" display="Emblem Skip Save" />
+    </Enum>
+  </Enums>
+</ConfigSchema>
