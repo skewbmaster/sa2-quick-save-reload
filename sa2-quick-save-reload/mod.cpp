@@ -8,10 +8,11 @@
 #define SA2_SAVE_SIZE 24576
 
 bool enabled;
+bool usePromptVer;
+bool reloadDelay;
 bool forceReload;
 bool deleteMainFile;
 bool deleteChao;
-bool useLegacySettings;
 static char* newSavePath;
 static char* slotSavePath;
 static std::string modPath;
@@ -24,6 +25,7 @@ static std::string debugMessage;
 static std::string extraDebugMessage;
 int debugMessageTime;
 int extraDebugMessageTime;
+int resetTimer;
 
 HelperFunctions HelperFunctionsGlobal;
 
@@ -35,7 +37,7 @@ void SetPathToNormal()
 	WriteData(&CurrentSavePath, &resourceGD1Pointer, 4);
 }
 
-void ReloadSaveLegacy();
+void ReloadSaveFile();
 void SetupDebugInfo(int scaleText, int colour);
 
 void ReloadSaveMenu();
@@ -51,12 +53,10 @@ extern "C"
 		// Config start
 		const IniFile* configFile = new IniFile(modPath + "\\config.ini");
 
-		useLegacySettings = configFile->getBool("LegacySettings", "UseLegacy", false);
-		std::string premadeSave = configFile->getString("LegacySettings", "PremadeFile", "Clean");
-		std::string saveFilePath = configFile->getString("LegacySettings", "SaveFilePath", "");
-
 		enabled = configFile->getBool("QSRSettings", "Enabled", false);
+		usePromptVer = configFile->getBool("QSRSettings", "UsePromptVersion", false);
 		int saveNum = configFile->getInt("QSRSettings", "SaveNum", 10);
+		reloadDelay = configFile->getBool("QSRSettings", "ReloadDelay", false);
 		forceReload = configFile->getBool("QSRSettings", "ForceReload", false);
 		deleteMainFile = configFile->getBool("QSRSettings", "DeleteMainFile", true);
 		deleteChao = configFile->getBool("QSRSettings", "DeleteChao", false);
@@ -71,43 +71,20 @@ extern "C"
 			return;
 		}
 
-		newSavePath = (char*) malloc(256); // Allocate string for the game to read our file
-		slotSavePath = (char*) malloc(64); // Allocate string for writing savedata
+		newSavePath = (char*)malloc(256); // Allocate string for the game to read our file
+		slotSavePath = (char*)malloc(64); // Allocate string for writing savedata
 		if (!newSavePath || !slotSavePath)
 		{
 			debugMessage = "Couldn't allocate memory for strings, somehow out of memory??";
 			debugMessageTime = DEFAULT_MESSAGE_TIME;
 			return;
 		}
-		
+
 		sprintf_s(slotSavePath, 39, "./resource/gd_PC/SAVEDATA/SONIC2B__S%02d", saveNum);
 
-		if (useLegacySettings)
+		if (!usePromptVer)
 		{
-			std::string loadedPath;
-			if (premadeSave == "Custom")
-			{
-				if (saveFilePath.empty() || !std::filesystem::exists(saveFilePath))
-				{
-					debugMessage = "Custom Filepath provided doesn't exist";
-					debugMessageTime = DEFAULT_MESSAGE_TIME;
-					return;
-				}
-				else if (std::filesystem::file_size(saveFilePath) != SA2_SAVE_SIZE)
-				{
-					debugMessage = "Custom File provided isn't an SA2 Save File";
-					debugMessageTime = DEFAULT_MESSAGE_TIME;
-					return;
-				}
-
-				loadedPath = "./" + saveFilePath; // Set reload path to the custom provided one
-				debugMessage = "Using \"" + saveFilePath + "\"";
-			}
-			else
-			{
-				loadedPath = ".\\" + modPath + "\\premadeSaves\\" + premadeSave; // Set reload path to one of the ones inside premade saves
-				debugMessage = "Using " + premadeSave;
-			}
+			std::string loadedPath = ".\\" + modPath + "\\premadeSaves\\Clean"; // Set reload path to one of the ones inside premade saves
 			strcpy_s(newSavePath, loadedPath.length() + 1, loadedPath.c_str());
 			SetPathToRead();
 			hasChosenFile = false;
@@ -118,15 +95,15 @@ extern "C"
 		}
 
 		extraDebugMessage = "Using File Number " + std::to_string(saveNum);
-		extraDebugMessageTime = DEFAULT_MESSAGE_TIME;
-		debugMessageTime = DEFAULT_MESSAGE_TIME;
-
+		extraDebugMessageTime = 160;
+		debugMessageTime = 160;
 		hasInit = true;
+		resetTimer = 0;
 	}
 
 	__declspec(dllexport) void __cdecl OnFrame()
 	{
-		if (useLegacySettings)
+		if (!usePromptVer)
 		{
 			if (!hasChosenFile && CurrentMenu == Menus_TitleScreen && oldMenu == Menus_FileSelect)
 			{
@@ -147,7 +124,6 @@ extern "C"
 
 		if (!hasInit && debugMessageTime != 0)
 		{
-
 			SetupDebugInfo(18, 0xFFFF0000);
 			HelperFunctionsGlobal.DisplayDebugString(NJM_LOCATION(1, 1), "WARNING:");
 			SetupDebugInfo(18, 0xFF00FFAA);
@@ -159,7 +135,7 @@ extern "C"
 		{
 			SetupDebugInfo(18, 0xFF00FFAA);
 			HelperFunctionsGlobal.DisplayDebugString(NJM_LOCATION(1, 1), "SA2 Quick Save Reload");
-			HelperFunctionsGlobal.DisplayDebugString(NJM_LOCATION(1, 3), debugMessage.c_str());
+			HelperFunctionsGlobal.DisplayDebugString(NJM_LOCATION(1, 2), debugMessage.c_str());
 
 			debugMessageTime--;
 		}
@@ -179,13 +155,13 @@ extern "C"
 
 		if (forceReload && CurrentMenu == Menus_TitleScreen && oldMenu != Menus_TitleScreen)
 		{
-			if (useLegacySettings)
+			if (usePromptVer)
 			{
-				ReloadSaveLegacy();
+				ReloadSaveMenu();
 			}
 			else
 			{
-				ReloadSaveMenu();
+				ReloadSaveFile();
 			}
 		}
 		else if (!forceReload && CurrentMenu == Menus_TitleScreen)
@@ -194,19 +170,29 @@ extern "C"
 			extraDebugMessage = "Press Y to reload Save Menu";
 			extraDebugMessageTime = 1;
 #endif
-
 			PDS_PERIPHERAL* controller = ControllerPointers[0];
-
-			if (controller && controller->press & Buttons_Y) // || keyboard handling maybe? Not possible cos sa2 doesn't map keyboard keys :)
+			
+			if (controller && ((controller->on & Buttons_Y && reloadDelay) || controller->press & Buttons_Y)) // || keyboard handling maybe? Not possible cos sa2 doesn't map keyboard keys :)
 			{
-				if (useLegacySettings)
+				resetTimer++;
+				if (resetTimer == 15 || !reloadDelay)
 				{
-					ReloadSaveLegacy();
+					if (usePromptVer)
+					{
+						ReloadSaveMenu();
+						debugMessage = "Reloaded File Prompt";
+					}
+					else
+					{
+						ReloadSaveFile();
+						debugMessage = "Reloaded Save File";
+					}
+					debugMessageTime = 60;
 				}
-				else
-				{
-					ReloadSaveMenu();
-				}
+			}
+			else
+			{
+				resetTimer = 0;
 			}
 		}
 		else
@@ -323,7 +309,7 @@ void ReloadSaveMenu()
 	}
 }
 
-void ReloadSaveLegacy()
+void ReloadSaveFile()
 {
 	if (!std::filesystem::exists(newSavePath))
 	{
