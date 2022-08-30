@@ -38,9 +38,8 @@ void SetPathToNormal()
 }
 
 void ReloadSaveFile();
-void SetupDebugInfo(int scaleText, int colour);
-
 void ReloadSaveMenu();
+void SetupDebugInfo(int scaleText, int colour);
 
 extern "C"
 {
@@ -55,6 +54,7 @@ extern "C"
 
 		enabled = configFile->getBool("QSRSettings", "Enabled", false);
 		usePromptVer = configFile->getBool("QSRSettings", "UsePromptVersion", false);
+		std::string saveFilePath = configFile->getString("QSRSettings", "SaveFilePath", "");
 		int saveNum = configFile->getInt("QSRSettings", "SaveNum", 10);
 		reloadDelay = configFile->getBool("QSRSettings", "ReloadDelay", false);
 		forceReload = configFile->getBool("QSRSettings", "ForceReload", false);
@@ -82,7 +82,28 @@ extern "C"
 
 		sprintf_s(slotSavePath, 39, "./resource/gd_PC/SAVEDATA/SONIC2B__S%02d", saveNum);
 
-		if (!usePromptVer)
+		std::string loadedPath;
+		if (saveFilePath != "")
+		{
+			if (saveFilePath.empty() || !std::filesystem::exists(saveFilePath))
+			{
+				debugMessage = "Custom Filepath provided doesn't exist";
+				debugMessageTime = DEFAULT_MESSAGE_TIME;
+				return;
+			}
+			else if (std::filesystem::file_size(saveFilePath) != SA2_SAVE_SIZE)
+			{
+				debugMessage = "Custom File provided isn't an SA2 Save File";
+				debugMessageTime = DEFAULT_MESSAGE_TIME;
+				return;
+			}
+
+			loadedPath = "./" + saveFilePath; // Set reload path to the custom provided one
+			strcpy_s(newSavePath, loadedPath.length() + 1, loadedPath.c_str());
+			SetPathToRead();
+			hasChosenFile = false;
+		}
+		else if (!usePromptVer)
 		{
 			std::string loadedPath = ".\\" + modPath + "\\premadeSaves\\Clean"; // Set reload path to one of the ones inside premade saves
 			strcpy_s(newSavePath, loadedPath.length() + 1, loadedPath.c_str());

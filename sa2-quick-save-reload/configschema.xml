@@ -8,6 +8,9 @@
 	  <Property name="UsePromptVersion" type="bool" defaultvalue="False" display="Use Prompt Reset Version" alwaysinclude="true">
 		<HelpText>Use the version of the mod where it instead reloads the initial save file prompt, allowing you to choose or make a new file in-game.</HelpText>
 	  </Property>
+	  <Property name="SaveFilePath" type="string" defaultvalue="" display="Custom File Path" alwaysinclude="true">
+		<HelpText>Filepath to a custom save file. Relative to your SA2 folder e.g. for first savefile: resource\gd_PC\SAVEDATA\SONIC2B__S01 (Leave empty if unused)</HelpText>
+	  </Property>
 	  <Property name="SaveNum" type="int" minvalue="0" maxvalue="10" defaultvalue="10" display="Savefile Number" alwaysinclude="true">
 		<HelpText>The file number that will be used when reloading saves.</HelpText>
 	  </Property>
