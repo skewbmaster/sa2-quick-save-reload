@@ -27,6 +27,8 @@ int debugMessageTime;
 int extraDebugMessageTime;
 int resetTimer;
 
+static int* accessibleMemory;
+
 HelperFunctions HelperFunctionsGlobal;
 
 void SetPathToRead() { memcpy_s(&CurrentSavePath, 4, &newSavePath, 4); }
@@ -120,6 +122,16 @@ extern "C"
 		debugMessageTime = 160;
 		hasInit = true;
 		resetTimer = 0;
+
+		accessibleMemory = (int*) malloc(64);
+		if (!accessibleMemory)
+		{
+			PrintDebug("QSR accessible memory couldn't be allocated for some reason\n");
+			return;
+		}
+		int accessMemPAsInt = reinterpret_cast<int>(accessibleMemory);
+		WriteData((void*) 0x454884, &accessMemPAsInt, 4); // 0x454884 has some unused memory which we will write our pointer to
+		*accessibleMemory = 0;
 	}
 
 	__declspec(dllexport) void __cdecl OnFrame()
@@ -209,6 +221,7 @@ extern "C"
 						debugMessage = "Reloaded Save File";
 					}
 					debugMessageTime = 60;
+					(*accessibleMemory)++;
 				}
 			}
 			else
