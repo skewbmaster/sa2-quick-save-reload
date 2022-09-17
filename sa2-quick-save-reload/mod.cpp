@@ -43,6 +43,10 @@ void ReloadSaveFile();
 void ReloadSaveMenu();
 void SetupDebugInfo(int scaleText, int colour);
 
+FunctionPointer(int, LoadSaveInGame, (char), 0x445100);
+VoidFunc(ResetTempAnimalCount, 0x4872C0);
+VoidFunc(Reset2PMenuOptionsAndOtherThings, 0x666790);
+
 extern "C"
 {
 	__declspec(dllexport) void __cdecl Init(const char* path, const HelperFunctions& helperFunctions)
@@ -356,7 +360,9 @@ void ReloadSaveFile()
 	}
 
 	SetPathToRead();
-	ProbablyLoadsSave(0);
+	LoadSaveInGame(0);
+	ResetTempAnimalCount();
+	Reset2PMenuOptionsAndOtherThings();
 	SetPathToWrite();
 
 	PrintDebug("Reloaded Savefile\n");
